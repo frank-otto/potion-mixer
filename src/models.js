@@ -80,7 +80,7 @@ export function ghostModel() {
   const g = new THREE.Group(); const geo = new THREE.SphereGeometry(.8, 48, 32, 0, Math.PI * 2, 0, Math.PI * .62);
   const p = geo.attributes.position, v = new THREE.Vector3();
   const body = new THREE.Group();
-  const top = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#eaf2ff', emissive: '#7aa8e8', emissiveIntensity: .28, roughness: .5, transparent: true, opacity: .9 }));
+  const top = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#d8e2f4', emissive: '#6a98d8', emissiveIntensity: .16, roughness: .5, transparent: true, opacity: .9 }));
   body.add(top);
   const skirtG = new THREE.CylinderGeometry(.73, .95, 1.1, 48, 8, true); const sp = skirtG.attributes.position;
   for (let i = 0; i < sp.count; i++) { v.fromBufferAttribute(sp, i); if (v.y < -.5) { const a = Math.atan2(v.z, v.x); v.y += Math.sin(a * 7) * .15; } sp.setXYZ(i, v.x, v.y, v.z); } skirtG.computeVertexNormals();
@@ -102,8 +102,8 @@ export function batModel() {
   return shadow(g);
 }
 export function pumpkinKingModel() {
-  const g = new THREE.Group(); const p = ribbed(.85, 12, .09, '#ff7a14'); p.material.emissive = new THREE.Color('#ff4a00'); p.material.emissiveIntensity = .38; g.add(p);
-  const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd060').multiplyScalar(2.2) });
+  const g = new THREE.Group(); const p = ribbed(.85, 12, .09, '#e0640e'); p.material.emissive = new THREE.Color('#ff4a00'); p.material.emissiveIntensity = .1; g.add(p);
+  const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd060').multiplyScalar(1.5) });
   const tri = (pts, z = .64) => { const sh = new THREE.Shape(); sh.moveTo(...pts[0]); for (const q of pts.slice(1)) sh.lineTo(...q); const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), glow); m.position.z = z; return m; };
   g.add(tri([[-.42, .2], [-.12, .2], [-.27, .42]])); g.add(tri([[.12, .2], [.42, .2], [.27, .42]]));
   const mouth = new THREE.Shape(); mouth.moveTo(-.48, -.08); for (let i = 0; i <= 8; i++) { const x = -.48 + i * .12; mouth.lineTo(x, (i % 2 ? -.18 : -.1) - Math.sin(i / 8 * Math.PI) * .15); } mouth.lineTo(.48, -.08); mouth.quadraticCurveTo(0, -.6, -.48, -.08);
@@ -111,7 +111,7 @@ export function pumpkinKingModel() {
   const st = new THREE.Mesh(new THREE.CylinderGeometry(.07, .1, .25, 8), S('#4a6a2a')); st.position.y = .72; g.add(st);
   const crown = crownModel(.42, .82); crown.scale.setScalar(1.15); g.add(crown);
   const cape = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.1, 32, 1, true, Math.PI * .15, Math.PI * 1.7), S('#5a0a2a', { side: THREE.DoubleSide, roughness: .6 })); cape.position.y = -.9; cape.rotation.y = Math.PI; g.add(cape);
-  const L = new THREE.PointLight('#ffb040', 14, 6, 2); L.position.set(0, .3, 1.6); g.add(L);
+  const L = new THREE.PointLight('#ffb040', 5, 5, 2); L.position.set(0, .3, 1.6); g.add(L);
   return shadow(g);
 }
 export function creatureModel(kind) {
