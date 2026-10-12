@@ -33,10 +33,17 @@ async def main():
         await pg.screenshot(path=OUT + 'shot-menu.png')
         await pg.click('#btnLang'); de = await pg.text_content('#btnPlay'); await pg.evaluate('__pm.step(1/30, 2)'); await pg.screenshot(path=OUT + 'shot-menu-de.png')
         check('DE toggle', de == 'Spielen', de); await pg.click('#btnLang')
+        info = await pg.evaluate('__pm.ingredientInfo()'); hues = sorted(i['hue'] for i in info)
+        gaps = [(hues[(j + 1) % len(hues)] - hues[j]) % 360 for j in range(len(hues))]
+        check('every ingredient has a unique shape + unique colour (hue gap >= 25deg) + 3D icon + label',
+              len({i['shape'] for i in info}) == 7 and len({i['glow'] for i in info}) == 7 and min(gaps) >= 25 and all(i['icon'] and i['label'] for i in info) and await pg.evaluate('__pm.labelVisible()'), [(i['k'], i['shape'], i['hue']) for i in info])
         await pg.click('#btnPlay'); await pg.evaluate('__pm.step(1/30, 10)')
         check('round starts with recipe card, 60 s', await pg.evaluate('__pm.S.state') == 'play' and await pg.is_visible('#card.show') and await pg.evaluate('__pm.S.time') > 59)
         n = await pg.evaluate('new Promise(r => { const f = () => window.__pmAudioReady ? r(window.__pmAudioReady) : setTimeout(f, 100); f(); })')
         check('CC0 sounds decoded', n == 23, n)
+        await pg.screenshot(path=OUT + 'shot-play-card.png')
+        check('recipe card icons = 3D-rendered ingredient images', await pg.evaluate("[...document.querySelectorAll('#card .ing img')].length") == 3)
+        check('normal mode: no solution highlight at start', await pg.evaluate('__pm.hints()') == [])
         rec = await pg.evaluate('__pm.S.recipe.ing'); s0 = await pg.evaluate('__pm.S.score')
         await tap(pg, rec[0]); check('tap correct 1st ingredient advances recipe', await pg.evaluate('__pm.S.idx') == 1)
         # drag the 2nd ingredient into the cauldron
@@ -55,6 +62,12 @@ async def main():
         await tap(pg, wrongk); await pg.evaluate('__pm.step(1/30, 4)')
         check('wrong ingredient -> goo, combo reset', await pg.evaluate('__pm.S.combo') == 0 and await pg.evaluate('__pm.S.gap') > 0)
         await pg.screenshot(path=OUT + 'shot-wrong.png')
+        h = []
+        for _ in range(2):
+            await pg.evaluate('__pm.step(1/30, 40)'); r = await pg.evaluate('__pm.S.recipe.ing'); h.append(await pg.evaluate('__pm.hints()'))
+            await tap(pg, [k for k in ['eye', 'frog', 'mushroom', 'wing', 'moonflower', 'pumpkin', 'crystal'] if k != r[0]][0])
+        await pg.evaluate('__pm.step(1/30, 40)'); r = await pg.evaluate('__pm.S.recipe.ing'); h3 = await pg.evaluate('__pm.hints()')
+        check('normal mode: hint appears only after 3 wrong tries', h == [[], []] and h3 == [r[0]], (h, h3))
         await pg.evaluate('__pm.step(1/30, 40)'); tl = await pg.evaluate('__pm.S.tLimit'); r0 = await pg.evaluate('__pm.S.recipe.id')
         await pg.evaluate(f'__pm.step(1/30, {int(tl * 30) + 4})')
         check('recipe times out (too slow) and a new one comes', await pg.evaluate('__pm.S.idx') == 0 and await pg.evaluate('__pm.S.combo') == 0, (round(tl, 1), r0))
@@ -73,6 +86,7 @@ async def main():
         await pg.click('#btnKids'); check('kids text', 'secret' in (await pg.text_content('#h3')))
         await pg.evaluate('__pm.step(1/30, 2)'); await pg.screenshot(path=OUT + 'shot-kids-menu.png')
         await pg.click('#btnPlay'); await pg.evaluate('__pm.step(1/30, 5)')
+        check('kids mode: solution hints shown', len(await pg.evaluate('__pm.hints()')) >= 3)
         for k in ['crystal', 'eye', 'moonflower']: await tap(pg, k)
         await pg.evaluate('__pm.step(1/30, 6)')
         check('kids: any-order secret potion discovered', await pg.evaluate('__pm.S.found.size') == 1 and await pg.evaluate('__pm.creature()') == 'ghost')
@@ -87,6 +101,7 @@ async def main():
         ctx, pg, logs = await page(b, viewport={'width': 390, 'height': 844}, device_scale_factor=3, is_mobile=True, has_touch=True)
         await pg.evaluate('__pm.step(1/30, 2)'); await pg.screenshot(path=OUT + 'shot-mobile-menu.png')
         await pg.tap('#btnPlay'); await pg.evaluate('__pm.step(1/30, 10)')
+        check('mobile: ingredients enlarged', await pg.evaluate('__pm.iscale()') > 1.2)
         check('mobile: tap starts game', await pg.evaluate('__pm.S.state') == 'play')
         rec = await pg.evaluate('__pm.S.recipe.ing'); await tap(pg, rec[0], True)
         check('mobile: tap throws ingredient', await pg.evaluate('__pm.S.idx') == 1)

@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createWorld, updateWorld, QUALITY } from './world.js';
-import { INGREDIENTS, EMOJI, GLOW, ingredientModel, creatureModel } from './models.js';
+import { INGREDIENTS, GLOW, SHAPE, HUE, ingredientModel, creatureModel } from './models.js';
 import { createFX, sparks, goo, puff, updateFX } from './fx.js';
 import * as A from './audio.js';
 import { T, RECIPES } from './i18n.js';
@@ -69,7 +69,8 @@ function layout() {
   const half = Math.max(...pos.map(p => Math.abs(p[0]))) + .45;
   camDist = 3.4 + half / (tanH * .9); camY = 3.4 + camDist * .52;
   slots.length || INGREDIENTS.forEach((k, i) => slots.push({ kind: k, i }));
-  slots.forEach((s, i) => { s.home = new THREE.Vector3(pos[i][0], W.tableY + .38, pos[i][1]); if (s.obj && !s.busy) s.obj.position.copy(s.home); if (s.pad) s.pad.position.set(pos[i][0], W.tableY + .1, pos[i][1]); if (s.hit) s.hit.position.copy(s.home); });
+  ISCALE = portrait ? 1.3 : 1; const LS = portrait ? 1.35 : 1;
+  slots.forEach((s, i) => { if (s.label) { const up = portrait && i < 4; s.label.position.set(pos[i][0], W.tableY + (up ? 1.05 : .2), pos[i][1] + (up ? -.1 : .5 * ISCALE)); s.label.scale.set(.96 * LS, .24 * LS, 1); } if (s.pad) s.pad.scale.setScalar(ISCALE); if (s.hit) s.hit.scale.setScalar(ISCALE); s.home = new THREE.Vector3(pos[i][0], W.tableY + .38, pos[i][1]); if (s.obj && !s.busy) s.obj.position.copy(s.home); if (s.pad) s.pad.position.set(pos[i][0], W.tableY + .1, pos[i][1]); if (s.hit) s.hit.position.copy(s.home); });
 }
 function camUpdate(dt) {
   const sway = Math.sin(S.gt * .13) * .16, bob = Math.sin(S.gt * .21) * .12;
@@ -88,12 +89,33 @@ for (const s of slots) {
   s.pad = new THREE.Mesh(padGeo, new THREE.MeshBasicMaterial({ color: GLOW[s.kind], transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false })); scene.add(s.pad);
   s.hit = new THREE.Mesh(new THREE.SphereGeometry(.5, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); s.hit.userData.slot = s; scene.add(s.hit);
   s.obj = makeSlotObj(s); s.grow = 1; s.ph = s.i * .9;
+  s.label = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, toneMapped: false })); s.label.renderOrder = 5; s.label.scale.set(.96, .24, 1); scene.add(s.label);
 }
+let ISCALE = 1;
 const flying = [];
+// recipe-card icons are rendered from the very same 3D ingredient models (so card == table)
+const ICON = {};
+(function makeIcons() {
+  let r; try { r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  r.setSize(128, 128, false); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.setClearColor(0, 0);
+  const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight('#ffffff', '#443355', 2.2)); const d = new THREE.DirectionalLight('#fff', 2.5); d.position.set(1, 2, 3); sc.add(d);
+  const cam = new THREE.PerspectiveCamera(30, 1, .1, 20); cam.position.set(0, .9, 2.1); cam.lookAt(0, 0, 0);
+  for (const k of INGREDIENTS) { const o = ingredientModel(k); o.rotation.y = k === 'eye' ? .5 : .35; sc.add(o); r.render(sc, cam); ICON[k] = r.domElement.toDataURL('image/png'); sc.remove(o); }
+  r.dispose(); r.forceContextLoss();
+})();
+// readable 3D name label under each ingredient
+function labelTex(k) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128; const g = c.getContext('2d'); const txt = t(k).toUpperCase();
+  let fs = 64; g.font = `700 ${fs}px Fredoka, "Arial Rounded MT Bold", sans-serif`; while (g.measureText(txt).width > 470 && fs > 30) { fs -= 2; g.font = `700 ${fs}px Fredoka, "Arial Rounded MT Bold", sans-serif`; }
+  const w = Math.min(500, g.measureText(txt).width + 44); g.fillStyle = 'rgba(10,6,22,.72)'; g.beginPath(); g.roundRect((512 - w) / 2, 18, w, 92, 46); g.fill();
+  g.lineWidth = 6; g.strokeStyle = GLOW[k]; g.stroke(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 256, 66);
+  const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4; return tx;
+}
+function updateLabels() { for (const s of slots) { if (s.label.material.map) s.label.material.map.dispose(); s.label.material.map = labelTex(s.kind); s.label.material.needsUpdate = true; } }
 // ---------------- recipes / game flow ----------------
 function newRecipe() {
   let i; do { i = Math.floor(rng() * RECIPES.length); } while (i === S.lastRecipe && RECIPES.length > 1);
-  S.lastRecipe = i; S.recipe = RECIPES[i]; S.idx = 0;
+  if (S.keepMiss && S.recipe) i = RECIPES.indexOf(S.recipe); S.lastRecipe = i; S.recipe = RECIPES[i]; S.idx = 0; if (!S.keepMiss) S.miss = 0; S.keepMiss = false;
   S.tLimit = lerp(13, 5.5, clamp(S.el / ROUND, 0, 1)); S.tLeft = S.tLimit; renderCard(true);
 }
 const liq = W.liquid.material.uniforms; const baseA = new THREE.Color('#2bff7a'), baseB = new THREE.Color('#0a5a3a');
@@ -101,7 +123,7 @@ const tgtA = baseA.clone(), tgtB = baseB.clone();
 function setBrew(a, b) { tgtA.set(a); tgtB.set(b); }
 function start() {
   A.unlock().then(() => { if (S.state === 'play') A.startMusic(); });
-  S.state = 'play'; S.score = 0; S.time = ROUND; S.el = 0; S.combo = 0; S.maxCombo = 0; S.brewed = 0; S.mix = []; S.found = new Set(); S.gap = 0; S.newBest = false;
+  S.state = 'play'; S.score = 0; S.time = ROUND; S.el = 0; S.combo = 0; S.maxCombo = 0; S.brewed = 0; S.mix = []; S.found = new Set(); S.gap = 0; S.miss = 0; S.keepMiss = false; S.newBest = false;
   setBrew('#2bff7a', '#0a5a3a'); A.sfx.start(S.kids); A.startMusic(); show(null);
   if (!S.kids) newRecipe(); else { S.recipe = null; renderCard(true); }
   hud();
@@ -175,7 +197,7 @@ function wrong(kidsMode) {
   sparks(F, SURF, 40, { colors: ['#9aff6a', '#4a8a2a'], speed: 3, life: .7, grav: 7, size: .07 });
   setBrew('#7a9a2a', '#2a3a0a'); setTimeout0(() => setBrew('#2bff7a', '#0a5a3a'), 1.4);
   popText(t('wrong'), '#aaff6a', 1.2);
-  if (!kidsMode) { S.combo = 0; S.gap = 1.0; $('card').classList.add('shake'); setTimeout0(() => $('card').classList.remove('shake'), .5); setTimeout0(() => { if (S.state === 'play') newRecipe(); }, 1.0); }
+  if (!kidsMode) { S.miss = (S.miss || 0) + 1; S.keepMiss = true; S.combo = 0; S.gap = 1.0; $('card').classList.add('shake'); setTimeout0(() => $('card').classList.remove('shake'), .5); setTimeout0(() => { if (S.state === 'play') newRecipe(); }, 1.0); }
   hud();
 }
 function expire() { A.sfx.fizzle(); puff(F, SURF, 8, '#6a5a7a'); S.combo = 0; popText(t('tooSlow'), '#c0b0ff'); setBrew('#4a6a5a', '#0a1a1a'); setTimeout0(() => setBrew('#2bff7a', '#0a5a3a'), 1.2); S.gap = .8; setTimeout0(() => { if (S.state === 'play') newRecipe(); }, .8); hud(); }
@@ -187,7 +209,7 @@ function hud() {
   $('hTime').textContent = Math.ceil(S.time); $('hTimeBox').classList.toggle('warn', S.state === 'play' && S.time <= 10 && !S.kids);
   $('hCombo').textContent = S.combo > 0 ? `×${Math.min(5, 1 + S.combo)}` : '—';
 }
-function chip(k, state) { return `<span class="ing ${state}"><b>${EMOJI[k]}</b><i>${t(k)}</i></span>`; }
+function chip(k, state) { return `<span class="ing ${state}" data-k="${k}" style="--c:${GLOW[k]}"><b>${ICON[k] ? `<img src="${ICON[k]}" alt="">` : ''}</b><i>${t(k)}</i></span>`; }
 function renderCard(fresh, done) {
   const c = $('card'); c.classList.add('show');
   if (S.kids) {
@@ -201,7 +223,7 @@ function renderCard(fresh, done) {
 function applyLang() {
   document.documentElement.lang = S.lang; document.querySelectorAll('[data-t]').forEach(el => el.textContent = t(el.dataset.t));
   $('h3').textContent = S.kids ? t('h3k') : t('h3'); $('btnLang').textContent = S.lang === 'en' ? 'DE' : 'EN';
-  $('btnKids').classList.toggle('on', S.kids); $('btnSound').classList.toggle('on', !A.isMuted()); $('btnQ').textContent = '⚙ ' + t('q_' + S.q);
+  $('btnKids').classList.toggle('on', S.kids); $('btnSound').classList.toggle('on', !A.isMuted()); $('btnQ').textContent = '⚙ ' + t('q_' + S.q); updateLabels();
   if (S.state === 'play') renderCard(); hud();
 }
 // ---------------- input: tap or drag ----------------
@@ -256,6 +278,12 @@ async function saveCard(share) {
 
 // ---------------- simulation ----------------
 const _v = new THREE.Vector3();
+// solution hints: kids mode always; normal mode only after 3 wrong tries on the same recipe
+function hintKinds() {
+  const h = new Set(); if (S.state !== 'play' || S.gap > 0) return h;
+  if (S.kids) { for (const r of RECIPES) { if (S.found.has(r.id)) continue; const rest = [...r.ing]; let ok = true; for (const m of S.mix) { const j = rest.indexOf(m); if (j < 0) { ok = false; break; } rest.splice(j, 1); } if (ok) { rest.forEach(k => h.add(k)); } } return h; }
+  if (S.recipe && S.miss >= 3) h.add(S.recipe.ing[S.idx]); return h;
+}
 function step(dt) {
   dt = Math.min(dt, 1 / 20); S.gt += dt;
   for (let i = timers.length - 1; i >= 0; i--) if (timers[i].t <= S.gt) { const f = timers[i].f; timers.splice(i, 1); f(); }
@@ -271,9 +299,9 @@ function step(dt) {
     if (!s.obj) continue; s.grow = Math.min(1, s.grow + dt * 3.5);
     if (s.returning) { s.obj.position.lerp(s.home, 1 - Math.exp(-dt * 10)); if (s.obj.position.distanceTo(s.home) < .02) s.returning = false; }
     else if (!s.dragging) { s.obj.position.set(s.home.x, s.home.y + Math.sin(S.gt * 2 + s.ph) * .06 + (s.hover ? .12 : 0), s.home.z); }
-    s.obj.rotation.y = S.gt * .6 + s.ph; s.obj.scale.setScalar(easeOutBack(s.grow) * (s.hover ? 1.15 : 1));
-    const next = S.state === 'play' && !S.kids && S.recipe && S.gap <= 0 && S.recipe.ing[S.idx] === s.kind;
-    s.pad.material.opacity = (next ? .55 + .35 * Math.sin(S.gt * 8) : .22) * (s.hover ? 1.6 : 1); s.pad.scale.setScalar(next ? 1.25 : 1);
+    s.obj.rotation.y = S.gt * .6 + s.ph; s.obj.scale.setScalar(easeOutBack(s.grow) * (s.hover ? 1.15 : 1) * ISCALE);
+    const next = hintKinds().has(s.kind);
+    s.pad.material.opacity = (next ? .55 + .35 * Math.sin(S.gt * 8) : .22) * (s.hover ? 1.6 : 1); s.pad.scale.setScalar((next ? 1.25 : 1) * ISCALE);
   }
   // flying ingredients
   for (let i = flying.length - 1; i >= 0; i--) {
@@ -326,5 +354,7 @@ function loop(now) { const dt = (now - last) / 1000; last = now; if (!window.__p
 requestAnimationFrame(loop);
 window.__pm = { S, start, end, step: (dt, n = 1) => { for (let i = 0; i < n; i++) step(dt); render(); }, log: A.log, quality: q => q ? applyQuality(q, true) : S.q, fps: () => fps.ema,
   throwKind: k => throwIngredient(slots.find(s => s.kind === k)), slotScreen: k => { const s = slots.find(s => s.kind === k); const v = s.home.clone().project(camera); return { x: (v.x * .5 + .5) * VW, y: (-v.y * .5 + .5) * VH, busy: !!s.busy }; },
+  ingredientInfo: () => INGREDIENTS.map(k => ({ k, glow: GLOW[k], hue: HUE[k], shape: SHAPE[k], icon: !!ICON[k], label: t(k) })), labelVisible: () => slots.every(s => s.label.visible && s.label.material.map), iscale: () => ISCALE, hints: () => [...hintKinds()],
   cauldronScreen: () => { const v = SURF.clone().project(camera); return { x: (v.x * .5 + .5) * VW, y: (-v.y * .5 + .5) * VH }; }, recipes: RECIPES, flying: () => flying.length, creature: () => creature && creature.kind, renderer };
+try { document.fonts.ready.then(() => updateLabels()); } catch (e) {}
 document.body.classList.add('ready');

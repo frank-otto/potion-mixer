@@ -39,12 +39,24 @@ export function crownModel(r, y) {
   g.position.y = y; return g;
 }
 export const INGREDIENTS = ['eye', 'frog', 'mushroom', 'wing', 'moonflower', 'pumpkin', 'crystal'];
-export const EMOJI = { eye: '👁️', frog: '🐸', mushroom: '🍄', wing: '🦇', moonflower: '🌸', pumpkin: '🎃', crystal: '💎' };
-export const GLOW = { eye: '#ff6a6a', frog: '#6aff6a', mushroom: '#ff4a4a', wing: '#b46bff', moonflower: '#9fd8ff', pumpkin: '#ff9a2a', crystal: '#c06bff' };
-export function ingredientModel(kind) {
+export const EMOJI = { eye: '👁️', frog: '🐸', mushroom: '🍄', wing: '🦇', moonflower: '🌸', pumpkin: '🎃', crystal: '🔷' };
+// one unique silhouette + one unique, widely spaced hue per ingredient (hue in degrees)
+export const SHAPE = { eye: 'sphere-eyeball', frog: 'frog-figure', mushroom: 'dome-cap-on-stem', wing: 'spread-bat-wings', moonflower: 'flat-star-petals', pumpkin: 'ribbed-gourd', crystal: 'hex-prism-spire' };
+export const GLOW = { eye: '#fff200', frog: '#2fff3a', mushroom: '#ff1a3a', wing: '#9a3cff', moonflower: '#ff4fd8', pumpkin: '#ff8000', crystal: '#00c8ff' };
+export const HUE = Object.fromEntries(Object.entries(GLOW).map(([k, c]) => { const h = new THREE.Color(c).getHSL({}, THREE.SRGBColorSpace).h; return [k, Math.round(h * 360)]; }));
+// inverted-hull glow rim around every mesh, in the ingredient's signature colour
+export function addRim(g, col, w = .06) {
+  const rimM = new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(1.6), side: THREE.BackSide, transparent: true, opacity: .85, depthWrite: false });
+  const meshes = []; g.traverse(o => { if (o.isMesh && !o.userData.rim) meshes.push(o); });
+  for (const m of meshes) { m.geometry.computeBoundingSphere(); const r = m.geometry.boundingSphere.radius || .1; const c = m.geometry.boundingSphere.center; if (r < .12) continue;
+    const h = new THREE.Mesh(m.geometry, rimM); h.userData.rim = true; h.castShadow = false; const k = 1 + w / Math.max(r, .05);
+    h.scale.setScalar(k); h.position.copy(c).multiplyScalar(1 - k); m.add(h); }
+  return g;
+}
+export function ingredientModel(kind, rim = true) {
   const g = new THREE.Group();
   if (kind === 'eye') {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(.32, 40, 28), S('#ffffff', { map: eyeTexture('#3a9a4a'), roughness: .12 })); m.rotation.y = -Math.PI / 2; g.add(m);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(.32, 40, 28), S('#ffffff', { map: eyeTexture('#ffc400'), roughness: .12 })); m.rotation.y = -Math.PI / 2; g.add(m);
     const cor = new THREE.Mesh(new THREE.SphereGeometry(.335, 32, 20), new THREE.MeshStandardMaterial({ color: '#fff', transparent: true, opacity: .12, roughness: 0, metalness: .2 })); g.add(cor);
   } else if (kind === 'frog') g.add(frogModel(.62));
   else if (kind === 'mushroom') {
@@ -60,8 +72,8 @@ export function ingredientModel(kind) {
     const m2 = m.clone(); m2.scale.x = -1.25; m2.position.x = 0; g.add(m2); m.position.x = 0;
     g.rotation.x = -1.15;
   } else if (kind === 'moonflower') {
-    const pet = S('#d6ecff', { emissive: '#7fb8ff', emissiveIntensity: .9, roughness: .4, side: THREE.DoubleSide });
-    for (let i = 0; i < 7; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(.17, 16, 10), pet); p.scale.set(.5, .12, 1); const a = i / 7 * Math.PI * 2; p.position.set(Math.cos(a) * .17, .05, Math.sin(a) * .17); p.rotation.y = -a + Math.PI / 2; p.rotation.x = .35; g.add(p); }
+    const pet = S('#ff7ae0', { emissive: '#ff2ac0', emissiveIntensity: .7, roughness: .4, side: THREE.DoubleSide });
+    for (let i = 0; i < 5; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(.2, 16, 10), pet); p.scale.set(.55, .12, 1); const a = i / 5 * Math.PI * 2; p.position.set(Math.cos(a) * .2, .05, Math.sin(a) * .2); p.rotation.y = -a + Math.PI / 2; p.rotation.x = .25; g.add(p); }
     const c = new THREE.Mesh(new THREE.SphereGeometry(.08, 16, 12), S('#ffe27a', { emissive: '#ffcc33', emissiveIntensity: 1.2 })); c.position.y = .09; g.add(c);
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(.02, .025, .35, 6), S('#3f7a3a')); stem.position.y = -.14; g.add(stem);
     g.rotation.x = .5;
@@ -69,11 +81,16 @@ export function ingredientModel(kind) {
     const p = ribbed(.3, 10, .1); g.add(p);
     const st = new THREE.Mesh(new THREE.CylinderGeometry(.035, .05, .14, 8), S('#4a6a2a')); st.position.y = .27; st.rotation.z = .2; g.add(st);
   } else if (kind === 'crystal') {
-    const geo = new THREE.OctahedronGeometry(.26, 0); geo.scale(.75, 1.5, .75);
-    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#b071ff', emissive: '#7a2aff', emissiveIntensity: 1.1, roughness: .1, metalness: .3, flatShading: true, transparent: true, opacity: .92 })); g.add(m);
-    for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(geo, m.material); s.scale.setScalar(.45); const a = i * 2.1; s.position.set(Math.cos(a) * .2, -.2, Math.sin(a) * .2); s.rotation.z = Math.cos(a) * .6; s.rotation.x = Math.sin(a) * .6; g.add(s); }
+    // hexagonal prism spire with pointed tip (quartz point) — tall & angular, no gem/diamond shape
+    const geo = new THREE.LatheGeometry([[0, -.3], [.13, -.3], [.13, .16], [0, .38]].map(([x, y]) => new THREE.Vector2(x, y)), 6);
+    const mat = new THREE.MeshStandardMaterial({ color: '#30d8ff', emissive: '#0090ff', emissiveIntensity: .9, roughness: .1, metalness: .2, flatShading: true });
+    const m = new THREE.Mesh(geo, mat); g.add(m);
+    for (let i = 0; i < 2; i++) { const s = new THREE.Mesh(geo, mat); s.scale.setScalar(.55); const a = i * Math.PI + .4; s.position.set(Math.cos(a) * .15, -.13, Math.sin(a) * .15); s.rotation.z = (i ? 1 : -1) * .5; g.add(s); }
   }
-  return shadow(g);
+  shadow(g);
+  // gentle self-illumination so each signature colour reads even in the dark corners of the table
+  g.traverse(o => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && o.material.emissive.getHex() === 0) { o.material = o.material.clone(); o.material.emissive.copy(o.material.color).multiplyScalar(.22); } });
+  if (rim) addRim(g, GLOW[kind]); return g;
 }
 // ---------- creatures ----------
 export function ghostModel() {
