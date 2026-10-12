@@ -46,7 +46,7 @@ export const GLOW = { eye: '#fff200', frog: '#2fff3a', mushroom: '#ff1a3a', wing
 export const HUE = Object.fromEntries(Object.entries(GLOW).map(([k, c]) => { const h = new THREE.Color(c).getHSL({}, THREE.SRGBColorSpace).h; return [k, Math.round(h * 360)]; }));
 // inverted-hull glow rim around every mesh, in the ingredient's signature colour
 export function addRim(g, col, w = .06) {
-  const rimM = new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(1.6), side: THREE.BackSide, transparent: true, opacity: .85, depthWrite: false });
+  const rimM = new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(.9), side: THREE.BackSide, transparent: true, opacity: .55, depthWrite: false });
   const meshes = []; g.traverse(o => { if (o.isMesh && !o.userData.rim) meshes.push(o); });
   for (const m of meshes) { m.geometry.computeBoundingSphere(); const r = m.geometry.boundingSphere.radius || .1; const c = m.geometry.boundingSphere.center; if (r < .12) continue;
     const h = new THREE.Mesh(m.geometry, rimM); h.userData.rim = true; h.castShadow = false; const k = 1 + w / Math.max(r, .05);
@@ -67,14 +67,14 @@ export function ingredientModel(kind, rim = true) {
   } else if (kind === 'wing') {
     const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(.62, .26); sh.quadraticCurveTo(.5, .05, .55, -.08); sh.quadraticCurveTo(.4, .02, .36, -.16); sh.quadraticCurveTo(.25, -.04, .16, -.18); sh.quadraticCurveTo(.1, -.05, 0, 0);
     const geo = new THREE.ExtrudeGeometry(sh, { depth: .02, bevelEnabled: true, bevelSize: .01, bevelThickness: .01, bevelSegments: 1 }); geo.translate(0, -.02, 0);
-    const m = new THREE.Mesh(geo, S('#7a3aa0', { roughness: .45, emissive: '#5a1a8a', emissiveIntensity: .8, side: THREE.DoubleSide })); m.scale.setScalar(1.25); g.add(m);
+    const m = new THREE.Mesh(geo, S('#7a3aa0', { roughness: .45, emissive: '#5a1a8a', emissiveIntensity: .45, side: THREE.DoubleSide })); m.scale.setScalar(1.25); g.add(m);
     const bone = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .65, 6), S('#1a0e20')); bone.rotation.z = Math.atan2(.26, .62) - Math.PI / 2; bone.position.set(.01, .13, .03); g.add(bone);
     const m2 = m.clone(); m2.scale.x = -1.25; m2.position.x = 0; g.add(m2); m.position.x = 0;
     g.rotation.x = -1.15;
   } else if (kind === 'moonflower') {
-    const pet = S('#ff7ae0', { emissive: '#ff2ac0', emissiveIntensity: .7, roughness: .4, side: THREE.DoubleSide });
+    const pet = S('#ff7ae0', { emissive: '#ff2ac0', emissiveIntensity: .35, roughness: .4, side: THREE.DoubleSide });
     for (let i = 0; i < 5; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(.2, 16, 10), pet); p.scale.set(.55, .12, 1); const a = i / 5 * Math.PI * 2; p.position.set(Math.cos(a) * .2, .05, Math.sin(a) * .2); p.rotation.y = -a + Math.PI / 2; p.rotation.x = .25; g.add(p); }
-    const c = new THREE.Mesh(new THREE.SphereGeometry(.08, 16, 12), S('#ffe27a', { emissive: '#ffcc33', emissiveIntensity: 1.2 })); c.position.y = .09; g.add(c);
+    const c = new THREE.Mesh(new THREE.SphereGeometry(.08, 16, 12), S('#ffe27a', { emissive: '#ffcc33', emissiveIntensity: .7 })); c.position.y = .09; g.add(c);
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(.02, .025, .35, 6), S('#3f7a3a')); stem.position.y = -.14; g.add(stem);
     g.rotation.x = .5;
   } else if (kind === 'pumpkin') {
@@ -83,13 +83,13 @@ export function ingredientModel(kind, rim = true) {
   } else if (kind === 'crystal') {
     // hexagonal prism spire with pointed tip (quartz point) — tall & angular, no gem/diamond shape
     const geo = new THREE.LatheGeometry([[0, -.3], [.13, -.3], [.13, .16], [0, .38]].map(([x, y]) => new THREE.Vector2(x, y)), 6);
-    const mat = new THREE.MeshStandardMaterial({ color: '#30d8ff', emissive: '#0090ff', emissiveIntensity: .9, roughness: .1, metalness: .2, flatShading: true });
+    const mat = new THREE.MeshStandardMaterial({ color: '#30d8ff', emissive: '#0090ff', emissiveIntensity: .5, roughness: .1, metalness: .2, flatShading: true });
     const m = new THREE.Mesh(geo, mat); g.add(m);
     for (let i = 0; i < 2; i++) { const s = new THREE.Mesh(geo, mat); s.scale.setScalar(.55); const a = i * Math.PI + .4; s.position.set(Math.cos(a) * .15, -.13, Math.sin(a) * .15); s.rotation.z = (i ? 1 : -1) * .5; g.add(s); }
   }
   shadow(g);
   // gentle self-illumination so each signature colour reads even in the dark corners of the table
-  g.traverse(o => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && o.material.emissive.getHex() === 0) { o.material = o.material.clone(); o.material.emissive.copy(o.material.color).multiplyScalar(.22); } });
+  g.traverse(o => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && o.material.emissive.getHex() === 0) { o.material = o.material.clone(); o.material.emissive.copy(o.material.color).multiplyScalar(.1); } });
   if (rim) addRim(g, GLOW[kind]); return g;
 }
 // ---------- creatures ----------

@@ -89,8 +89,8 @@ export function makeLiquid() {
         vec3 col = mix(uColB, uColA, smoothstep(.25,.85,n));
         float foam = smoothstep(.62,.9,n2) * .6 + smoothstep(1.02,1.16,r) * .9;
         col += foam * uColA * .8;
-        col += vec3(1.,.95,.8) * pow(max(0., vH*12.+.4), 4.) * .25;
-        col *= (.75 + uGlow*.9) * (1. + uFlash*2.5);
+        col += vec3(1.,.95,.8) * min(pow(max(0., vH*12.+.4), 4.), 2.) * .15;
+        col *= (.7 + uGlow*.55) * (1. + uFlash*1.3);
         gl_FragColor = vec4(col, 1.);
         #include <colorspace_fragment>
       }`
@@ -131,7 +131,7 @@ export function createWorld(renderer, q) {
         } else {
           const shape = bottleShapes[Math.floor(r() * 3)], col = new THREE.Color(bottleColors[Math.floor(r() * bottleColors.length)]);
           const sc = .75 + r() * .55, bg = new THREE.Group(); bg.position.set(x + .15 * sc, y + .04, (r() - .5) * .15); bg.scale.setScalar(sc);
-          const liquid = new THREE.Mesh(shape, new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.2 + r() * 1.2, roughness: .3 })); liquid.scale.set(.82, .62, .82); bg.add(liquid);
+          const liquid = new THREE.Mesh(shape, new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: .65 + r() * .6, roughness: .3 })); liquid.scale.set(.82, .62, .82); bg.add(liquid);
           const glass = new THREE.Mesh(shape, glassMat); bg.add(glass);
           const cork = new THREE.Mesh(new THREE.CylinderGeometry(.045, .04, .07, 8), woodMat); cork.position.y = shape === bottleShapes[1] ? .47 : shape === bottleShapes[2] ? .61 : .55; bg.add(cork);
           unit.add(bg); W.bottles.push({ m: liquid.material, base: liquid.material.emissiveIntensity, ph: r() * 6 }); x += .32 * sc + .05;

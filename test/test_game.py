@@ -11,7 +11,7 @@ def check(n, ok, info=''): R.append(bool(ok)); print(('PASS ' if ok else 'FAIL '
 
 async def page(b, q='high', **kw):
     ctx = await b.new_context(accept_downloads=True, **kw)
-    await ctx.add_init_script(f"window.__pmSeed = 4242; window.__pmNoAutoQ = true; try{{localStorage.clear(); localStorage.setItem('pm-q','{q}')}}catch(e){{}}")
+    await ctx.add_init_script(f"window.__pmSeed = 4242; window.__pmNoAutoQ = true; try{{if(!sessionStorage.getItem('pmInit')){{sessionStorage.setItem('pmInit','1'); localStorage.clear(); localStorage.setItem('pm-q','{q}')}}}}catch(e){{}}")
     pg = await ctx.new_page(); logs = []
     pg.on('console', lambda m: logs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') else None)
     pg.on('pageerror', lambda e: logs.append(f'PAGEERROR {e}'))
@@ -107,6 +107,28 @@ async def main():
         check('mobile: tap throws ingredient', await pg.evaluate('__pm.S.idx') == 1)
         await tap(pg, rec[1], True); await pg.screenshot(path=OUT + 'shot-mobile-play.png')
         check('no console errors (mobile)', not logs, logs[:5]); await ctx.close()
+        # difficulty levels
+        ctx, pg, logs = await page(b, viewport={'width': 1280, 'height': 800})
+        check('difficulty buttons, Medium default', await pg.evaluate("document.querySelectorAll('#diff button').length") == 3 and await pg.evaluate('__pm.diff()') == 'medium' and await pg.text_content('#diff button.on') == 'Medium')
+        await pg.click('#btnLang'); de = await pg.text_content('#diff button[data-d=hard]'); await pg.click('#btnLang')
+        await pg.click('#diff button[data-d=easy]'); await pg.reload(); await pg.wait_for_function('document.body.classList.contains("ready")'); await pg.evaluate('window.__pmManual = true')
+        check('difficulty remembered + DE label', await pg.evaluate('__pm.diff()') == 'easy' and de == 'Schwer', de)
+        await pg.click('#btnPlay'); await pg.evaluate('__pm.step(1/30, 10)')
+        r = await pg.evaluate('__pm.S.recipe.ing'); tle = await pg.evaluate('__pm.S.tLimit')
+        await tap(pg, [k for k in ['eye', 'frog', 'mushroom', 'wing', 'moonflower', 'pumpkin', 'crystal'] if k not in r][0]); await pg.evaluate('__pm.step(1/30, 40)')
+        check('easy: 2-ingredient recipes, more time, hint after 1 miss', len(r) == 2 and tle > 15 and await pg.evaluate('__pm.hints()') == [r[0]], (r, round(tle, 1)))
+        await pg.screenshot(path=OUT + 'shot-easy-hint.png'); await ctx.close()
+        ctx, pg, logs2 = await page(b, viewport={'width': 1280, 'height': 800})
+        await pg.click('#diff button[data-d=hard]'); await pg.click('#btnPlay'); await pg.evaluate('__pm.step(1/30, 10)')
+        r = await pg.evaluate('__pm.S.recipe.ing'); hs = []
+        for _ in range(4):
+            await tap(pg, [k for k in ['eye', 'frog', 'mushroom', 'wing', 'moonflower', 'pumpkin', 'crystal'] if k not in r][0]); await pg.evaluate('__pm.step(1/30, 40)'); hs.append(await pg.evaluate('__pm.hints()'))
+        check('hard: 4-ingredient recipes, no hint after 4 misses', len(r) == 4 and len(set(r)) == 4 and hs == [[], [], [], []], (r, hs))
+        s0 = await pg.evaluate('__pm.S.score')
+        for k in r: await tap(pg, k)
+        check('hard: brewing pays more (x1.5)', await pg.evaluate('__pm.S.score') - s0 >= 40 + 150, await pg.evaluate('__pm.S.score') - s0)
+        await pg.screenshot(path=OUT + 'shot-hard.png')
+        check('no console errors (difficulty)', not logs and not logs2, (logs + logs2)[:5]); await ctx.close()
         # quality levels
         for q in ['low', 'mid', 'high', 'ultra']:
             ctx, pg, logs = await page(b, q=q, viewport={'width': 960, 'height': 600})

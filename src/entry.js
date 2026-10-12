@@ -19,18 +19,20 @@ const lerp = (a, b, k) => a + (b - a) * k, clamp = (v, a, b) => Math.max(a, Math
 const easeOutBack = x => { const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 
 const S = {
-  state: 'menu', lang: ls.get('pm-lang', 'en'), kids: ls.get('pm-kids', '0') === '1', q: ls.get('pm-q', ''), qUser: !!ls.get('pm-q', ''),
+  state: 'menu', lang: ls.get('pm-lang', 'en'), diff: ls.get('pm-diff', 'medium'), miss: 0, kids: ls.get('pm-kids', '0') === '1', q: ls.get('pm-q', ''), qUser: !!ls.get('pm-q', ''),
   score: 0, time: ROUND, el: 0, combo: 0, maxCombo: 0, brewed: 0, gt: 0, recipe: null, idx: 0, tLimit: 10, tLeft: 10, gap: 0, mix: [], found: new Set(), newBest: false,
   best: +ls.get('pm-best', '0') || 0, name: ls.get('pm-name', 'Player') || 'Player', shake: 0, flash: 0, lastRecipe: -1
 };
 if (!QUALITY[S.q]) { S.q = 'high'; S.qUser = false; }
 A.setClock(() => S.gt);
+const DIFF = { easy: { len: 2, hint: 1, t0: 18, t1: 9, mult: 1 }, medium: { len: 3, hint: 3, t0: 13, t1: 5.5, mult: 1 }, hard: { len: 4, hint: 5, t0: 11, t1: 5, mult: 1.5 } };
+if (!DIFF[S.diff]) S.diff = 'medium';
 const t = k => T[S.lang][k] || T.en[k] || k;
 
 // ---------------- renderer / scene ----------------
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .98;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 const W = createWorld(renderer, QUALITY[S.q]); const scene = W.scene;
 const camera = new THREE.PerspectiveCamera(42, 1, .1, 60);
@@ -39,7 +41,7 @@ let composer, bloom, bokeh;
 function buildComposer() {
   const q = QUALITY[S.q]; if (composer) composer.dispose();
   composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
-  bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .85 * q.bloom, .65, .72); composer.addPass(bloom);
+  bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .55 * q.bloom, .5, .82); composer.addPass(bloom);
   bokeh = null; if (q.bokeh) { bokeh = new BokehPass(scene, camera, { focus: 9, aperture: .0009, maxblur: .006 }); composer.addPass(bokeh); }
   composer.addPass(new OutputPass());
 }
@@ -115,8 +117,10 @@ function updateLabels() { for (const s of slots) { if (s.label.material.map) s.l
 // ---------------- recipes / game flow ----------------
 function newRecipe() {
   let i; do { i = Math.floor(rng() * RECIPES.length); } while (i === S.lastRecipe && RECIPES.length > 1);
-  if (S.keepMiss && S.recipe) i = RECIPES.indexOf(S.recipe); S.lastRecipe = i; S.recipe = RECIPES[i]; S.idx = 0; if (!S.keepMiss) S.miss = 0; S.keepMiss = false;
-  S.tLimit = lerp(13, 5.5, clamp(S.el / ROUND, 0, 1)); S.tLeft = S.tLimit; renderCard(true);
+  const D = DIFF[S.diff];
+  if (!(S.keepMiss && S.recipe)) { const base = RECIPES[i]; let ing = base.ing.slice(0, Math.min(3, D.len)); if (D.len > 3) { const extra = INGREDIENTS.filter(k => !ing.includes(k)); ing = [...ing, extra[Math.floor(rng() * extra.length)]]; } S.lastRecipe = i; S.recipe = { ...base, ing }; S.miss = 0; }
+  S.idx = 0; S.keepMiss = false;
+  S.tLimit = lerp(D.t0, D.t1, clamp(S.el / ROUND, 0, 1)); S.tLeft = S.tLimit; renderCard(true);
 }
 const liq = W.liquid.material.uniforms; const baseA = new THREE.Color('#2bff7a'), baseB = new THREE.Color('#0a5a3a');
 const tgtA = baseA.clone(), tgtB = baseB.clone();
@@ -171,16 +175,16 @@ function arrive(kind) {
   }
   if (!S.recipe || S.gap > 0) { A.sfx.drop(false); return; }
   if (kind === S.recipe.ing[S.idx]) {
-    S.idx++; S.score += 10; A.sfx.drop(true); tgtA.copy(baseA).lerp(new THREE.Color(S.recipe.a), S.idx / 3); tgtB.copy(baseB).lerp(new THREE.Color(S.recipe.b), S.idx / 3);
+    S.idx++; S.score += 10; A.sfx.drop(true); const L = S.recipe.ing.length; tgtA.copy(baseA).lerp(new THREE.Color(S.recipe.a), S.idx / L); tgtB.copy(baseB).lerp(new THREE.Color(S.recipe.b), S.idx / L);
     popText('+10', '#fff', .8, -.2);
-    if (S.idx >= 3) complete(S.recipe); else renderCard();
+    if (S.idx >= S.recipe.ing.length) complete(S.recipe); else renderCard();
   } else wrong(false);
   hud();
 }
 let creature = null;
 function complete(r, isNew = true) {
   const mult = S.kids ? 1 : Math.min(5, 1 + S.combo);
-  if (!S.kids) { const pts = 100 * mult + Math.round(S.tLeft * 10); S.score += pts; S.combo++; S.maxCombo = Math.max(S.maxCombo, S.combo); S.brewed++; popText(`${r[S.lang]}! +${pts}`, '#ffe08a', 1.15); if (S.combo > 1) popText(`COMBO ×${Math.min(5, 1 + S.combo)}`, '#d0a0ff', .9, .55); }
+  if (!S.kids) { const pts = Math.round((100 * mult + Math.round(S.tLeft * 10)) * DIFF[S.diff].mult); S.score += pts; S.combo++; S.maxCombo = Math.max(S.maxCombo, S.combo); S.brewed++; popText(`${r[S.lang]}! +${pts}`, '#ffe08a', 1.15); if (S.combo > 1) popText(`COMBO ×${Math.min(5, 1 + S.combo)}`, '#d0a0ff', .9, .55); }
   else popText(isNew ? t('found') : r[S.lang], '#ffe08a', 1.1);
   setBrew(r.a, r.b); A.sfx.complete(r.creature, S.combo);
   S.flash = 1; S.shake = .9;
@@ -223,7 +227,7 @@ function renderCard(fresh, done) {
 function applyLang() {
   document.documentElement.lang = S.lang; document.querySelectorAll('[data-t]').forEach(el => el.textContent = t(el.dataset.t));
   $('h3').textContent = S.kids ? t('h3k') : t('h3'); $('btnLang').textContent = S.lang === 'en' ? 'DE' : 'EN';
-  $('btnKids').classList.toggle('on', S.kids); $('btnSound').classList.toggle('on', !A.isMuted()); $('btnQ').textContent = '⚙ ' + t('q_' + S.q); updateLabels();
+  $('btnKids').classList.toggle('on', S.kids); document.querySelectorAll('#diff button').forEach(b => b.classList.toggle('on', b.dataset.d === S.diff)); $('diff').style.display = S.kids ? 'none' : ''; $('btnSound').classList.toggle('on', !A.isMuted()); $('btnQ').textContent = '⚙ ' + t('q_' + S.q); updateLabels();
   if (S.state === 'play') renderCard(); hud();
 }
 // ---------------- input: tap or drag ----------------
@@ -248,6 +252,7 @@ $('btnMenu').onclick = () => { S.state = 'menu'; A.sfx.ui(); A.stopMusic(); show
 $('btnFinish').onclick = () => end('kids');
 $('btnCard').onclick = () => saveCard(false); $('btnShare').onclick = () => saveCard(true);
 $('btnLang').onclick = () => { S.lang = S.lang === 'en' ? 'de' : 'en'; ls.set('pm-lang', S.lang); applyLang(); A.sfx.ui(); };
+document.querySelectorAll('#diff button').forEach(b => b.onclick = () => { S.diff = b.dataset.d; ls.set('pm-diff', S.diff); applyLang(); A.sfx.ui(); });
 $('btnKids').onclick = () => { S.kids = !S.kids; ls.set('pm-kids', S.kids ? '1' : '0'); applyLang(); show('menu'); A.unlock(); A.sfx.ui(); };
 $('btnSound').onclick = () => { A.setMuted(!A.isMuted()); applyLang(); };
 $('btnQ').onclick = () => { const o = ['low', 'mid', 'high', 'ultra']; applyQuality(o[(o.indexOf(S.q) + 1) % 4], true); };
@@ -282,7 +287,7 @@ const _v = new THREE.Vector3();
 function hintKinds() {
   const h = new Set(); if (S.state !== 'play' || S.gap > 0) return h;
   if (S.kids) { for (const r of RECIPES) { if (S.found.has(r.id)) continue; const rest = [...r.ing]; let ok = true; for (const m of S.mix) { const j = rest.indexOf(m); if (j < 0) { ok = false; break; } rest.splice(j, 1); } if (ok) { rest.forEach(k => h.add(k)); } } return h; }
-  if (S.recipe && S.miss >= 3) h.add(S.recipe.ing[S.idx]); return h;
+  if (S.recipe && S.miss >= DIFF[S.diff].hint) h.add(S.recipe.ing[S.idx]); return h;
 }
 function step(dt) {
   dt = Math.min(dt, 1 / 20); S.gt += dt;
@@ -290,7 +295,7 @@ function step(dt) {
   if (S.state === 'play' && !S.kids) {
     S.el += dt; S.time = Math.max(0, ROUND - S.el);
     if (S.gap > 0) S.gap -= dt; else if (S.recipe) { S.tLeft -= dt; if (S.tLeft <= 0) { S.tLeft = 0; expire(); } }
-    const b = $('bar'); if (b) { const k = S.gap > 0 && S.idx >= 3 ? 1 : S.tLeft / S.tLimit; b.style.transform = `scaleX(${k})`; b.style.background = k < .3 ? '#ff6a5a' : 'linear-gradient(90deg,#7aff9a,#ffe07a)'; }
+    const b = $('bar'); if (b) { const k = S.gap > 0 && S.recipe && S.idx >= S.recipe.ing.length ? 1 : S.tLeft / S.tLimit; b.style.transform = `scaleX(${k})`; b.style.background = k < .3 ? '#ff6a5a' : 'linear-gradient(90deg,#7aff9a,#ffe07a)'; }
     if (Math.ceil(S.time) !== lastSec) { lastSec = Math.ceil(S.time); hud(); }
     if (S.time <= 0) end('time');
   }
@@ -330,9 +335,9 @@ function step(dt) {
   }
   // liquid colors, agitation, flashes
   liq.uColA.value.lerp(tgtA, 1 - Math.exp(-dt * 3)); liq.uColB.value.lerp(tgtB, 1 - Math.exp(-dt * 3));
-  W.brew.color.copy(liq.uColA.value); liq.uAgit.value = .35 + S.flash * 1.6 + (flying.length ? .2 : 0); liq.uFlash.value = S.flash * .35;
-  W.flash.intensity = S.flash * 140; W.flash.color.copy(liq.uColA.value).lerp(new THREE.Color('#fff'), .5);
-  if (bloom) bloom.strength = .75 * QUALITY[S.q].bloom + S.flash * .6;
+  W.brew.color.copy(liq.uColA.value); liq.uAgit.value = .35 + S.flash * 1.6 + (flying.length ? .2 : 0); liq.uFlash.value = S.flash * .25;
+  W.flash.intensity = S.flash * 70; W.flash.color.copy(liq.uColA.value).lerp(new THREE.Color('#fff'), .5);
+  if (bloom) bloom.strength = .5 * QUALITY[S.q].bloom + S.flash * .25;
   S.flash *= Math.exp(-dt * 3.2); S.shake *= Math.exp(-dt * 5);
   if (S.state === 'menu' && !window.__pmManual && rng() < dt * .45) throwIngredient(slots[Math.floor(rng() * 7)]);
   updateWorld(W, S.gt, dt, { agit: liq.uAgit.value });
@@ -354,7 +359,7 @@ function loop(now) { const dt = (now - last) / 1000; last = now; if (!window.__p
 requestAnimationFrame(loop);
 window.__pm = { S, start, end, step: (dt, n = 1) => { for (let i = 0; i < n; i++) step(dt); render(); }, log: A.log, quality: q => q ? applyQuality(q, true) : S.q, fps: () => fps.ema,
   throwKind: k => throwIngredient(slots.find(s => s.kind === k)), slotScreen: k => { const s = slots.find(s => s.kind === k); const v = s.home.clone().project(camera); return { x: (v.x * .5 + .5) * VW, y: (-v.y * .5 + .5) * VH, busy: !!s.busy }; },
-  ingredientInfo: () => INGREDIENTS.map(k => ({ k, glow: GLOW[k], hue: HUE[k], shape: SHAPE[k], icon: !!ICON[k], label: t(k) })), labelVisible: () => slots.every(s => s.label.visible && s.label.material.map), iscale: () => ISCALE, hints: () => [...hintKinds()],
+  ingredientInfo: () => INGREDIENTS.map(k => ({ k, glow: GLOW[k], hue: HUE[k], shape: SHAPE[k], icon: !!ICON[k], label: t(k) })), labelVisible: () => slots.every(s => s.label.visible && s.label.material.map), iscale: () => ISCALE, diff: () => S.diff, hints: () => [...hintKinds()],
   cauldronScreen: () => { const v = SURF.clone().project(camera); return { x: (v.x * .5 + .5) * VW, y: (-v.y * .5 + .5) * VH }; }, recipes: RECIPES, flying: () => flying.length, creature: () => creature && creature.kind, renderer };
 try { document.fonts.ready.then(() => updateLabels()); } catch (e) {}
 document.body.classList.add('ready');

@@ -7,6 +7,7 @@ export const T = {
     over: 'The cauldron rests', timeUp: 'Time is up!', name: 'Your name', again: 'Play again', card: 'Save highscore card', share: 'Share', menu: 'Menu', finish: 'Finish',
     brewed: 'potions brewed', maxCombo: 'best combo', secrets: 'secret potions', found: 'Secret potion found!', discover: 'Discover the secret potions', mixed: 'In the brew',
     wrong: 'BLORP!', tooSlow: 'Too slow!', cardLine: 'Can you brew more?', cardCta: 'Play free in your browser', kidsCard: 'secret potions discovered',
+    d_easy: 'Easy', d_medium: 'Medium', d_hard: 'Hard', difficulty: 'Difficulty',
     eye: 'eye', frog: 'frog', mushroom: 'mushroom', wing: 'bat wing', moonflower: 'moonflower', pumpkin: 'pumpkin', crystal: 'crystal',
     ghost: 'Ghost', bats: 'Bat swarm', king: 'Pumpkin King', frogk: 'Frog King', q_low: 'Low', q_mid: 'Medium', q_high: 'High', q_ultra: 'Ultra', autoQ: 'Quality adjusted:'
   },
@@ -18,6 +19,7 @@ export const T = {
     over: 'Der Kessel ruht', timeUp: 'Zeit um!', name: 'Dein Name', again: 'Nochmal', card: 'Rekord-Karte speichern', share: 'Teilen', menu: 'Menü', finish: 'Fertig',
     brewed: 'Tränke gebraut', maxCombo: 'beste Combo', secrets: 'Geheimtränke', found: 'Geheimtrank entdeckt!', discover: 'Entdecke die Geheimtränke', mixed: 'Im Kessel',
     wrong: 'BLUBB!', tooSlow: 'Zu langsam!', cardLine: 'Braust du mehr?', cardCta: 'Kostenlos im Browser spielen', kidsCard: 'Geheimtränke entdeckt',
+    d_easy: 'Leicht', d_medium: 'Mittel', d_hard: 'Schwer', difficulty: 'Schwierigkeit',
     eye: 'Auge', frog: 'Frosch', mushroom: 'Pilz', wing: 'Fledermausflügel', moonflower: 'Mondblume', pumpkin: 'Kürbis', crystal: 'Kristall',
     ghost: 'Geist', bats: 'Fledermausschwarm', king: 'Kürbiskönig', frogk: 'Froschkönig', q_low: 'Niedrig', q_mid: 'Mittel', q_high: 'Hoch', q_ultra: 'Ultra', autoQ: 'Qualität angepasst:'
   }
