@@ -2,7 +2,7 @@
 
 A cinematic 3D Halloween browser game. In a candle-lit witch's vault a big cauldron bubbles. Read the recipe, throw the ingredients in the right order, and watch a creature rise from the brew.
 
-**Play:** https://frank-otto.github.io/potion-mixer/
+**Play:** [online version (GitHub Pages)](https://frank-otto.github.io/potion-mixer/)
 
 ## How to play (in 10 seconds)
 - A **recipe card** shows three ingredients, e.g. eye + frog + moonflower.

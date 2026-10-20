@@ -10,7 +10,7 @@ import { createFX, sparks, goo, puff, updateFX } from './fx.js';
 import * as A from './audio.js';
 import { T, RECIPES } from './i18n.js';
 
-const ROUND = 60, URL_TXT = 'frank-otto.github.io/potion-mixer';
+const ROUND = 60, URL_TXT = '@Frank_AI_Lab';
 const $ = id => document.getElementById(id);
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
 let seed = (window.__pmSeed || (Date.now() & 0xffffff)) >>> 0;
@@ -277,7 +277,7 @@ async function saveCard(share) {
   k.fillStyle = 'rgba(255,255,255,.8)'; k.font = Fo(400, 34); k.fillText(t('cardCta') + ' · ' + URL_TXT, CW / 2, 1295);
   const blob = await new Promise(r => c.toBlob(r, 'image/png')); window.__pmCard = { w: c.width, h: c.height };
   const file = new File([blob], 'potion-mixer-highscore.png', { type: 'image/png' });
-  if (share && navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], text: `Potion Mixer: ${S.kids ? S.found.size + '/8' : S.score} — ${t('cardLine')} https://${URL_TXT}/` }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  if (share && navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], text: `Potion Mixer: ${S.kids ? S.found.size + '/8' : S.score} — ${t('cardLine')} ${URL_TXT}` }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'potion-mixer-highscore.png'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
 
