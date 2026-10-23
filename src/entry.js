@@ -18,8 +18,10 @@ function rng() { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t
 const lerp = (a, b, k) => a + (b - a) * k, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const easeOutBack = x => { const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 
+// language follows the phone/browser (German devices → DE, else EN) until the player picks one with the DE/EN toggle
+function autoLang() { try { const l = (navigator.languages && navigator.languages[0]) || navigator.language || ''; return /^de\b/i.test(l) ? 'de' : 'en'; } catch (e) { return 'en'; } }
 const S = {
-  state: 'menu', lang: ls.get('pm-lang', 'en'), diff: ls.get('pm-diff', 'medium'), miss: 0, kids: ls.get('pm-kids', '0') === '1', q: ls.get('pm-q', ''), qUser: !!ls.get('pm-q', ''),
+  state: 'menu', lang: (ls.get('pm-lang', '') || autoLang()), diff: ls.get('pm-diff', 'medium'), miss: 0, kids: ls.get('pm-kids', '0') === '1', q: ls.get('pm-q', ''), qUser: !!ls.get('pm-q', ''),
   score: 0, time: ROUND, el: 0, combo: 0, maxCombo: 0, brewed: 0, gt: 0, recipe: null, idx: 0, tLimit: 10, tLeft: 10, gap: 0, mix: [], found: new Set(), newBest: false,
   best: +ls.get('pm-best', '0') || 0, name: ls.get('pm-name', 'Player') || 'Player', shake: 0, flash: 0, lastRecipe: -1
 };
@@ -39,7 +41,7 @@ const camera = new THREE.PerspectiveCamera(42, 1, .1, 60);
 const F = createFX(scene, W.soft, W.smokeTex);
 let composer, bloom, bokeh;
 function buildComposer() {
-  const q = QUALITY[S.q]; if (composer) composer.dispose();
+  const q = QUALITY[S.q]; if (composer) { composer.passes.forEach(p => p.dispose && p.dispose()); composer.dispose(); }
   composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
   bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .55 * q.bloom, .5, .82); composer.addPass(bloom);
   bokeh = null; if (q.bokeh) { bokeh = new BokehPass(scene, camera, { focus: 9, aperture: .0009, maxblur: .006 }); composer.addPass(bokeh); }
@@ -85,6 +87,8 @@ function camUpdate(dt) {
 }
 // build ingredient objects
 const padGeo = new THREE.CircleGeometry(.36, 32); padGeo.rotateX(-Math.PI / 2);
+// free a thrown ingredient / finished creature completely (every model owns its geometries, materials and canvas textures)
+function disposeObj(o) { if (!o) return; if (o.parent) o.parent.remove(o); const ms = new Set(); o.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => ms.add(m)); }); ms.forEach(m => { for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose(); m.dispose(); }); }
 function makeSlotObj(s) { const o = ingredientModel(s.kind); o.userData.kind = s.kind; scene.add(o); return o; }
 slots.length || INGREDIENTS.forEach((k, i) => slots.push({ kind: k, i }));
 for (const s of slots) {
@@ -190,7 +194,7 @@ function complete(r, isNew = true) {
   S.flash = 1; S.shake = .9;
   sparks(F, SURF, Math.round(420 * QUALITY[S.q].parts + 100), { colors: [r.a, '#ffe08a', r.a], speed: 6.5, up: 1.6, cone: .3, life: 1.8, grav: 5, size: .11, spread: .5 });
   setTimeout0(() => sparks(F, SURF, 160, { colors: [r.a, '#fff'], speed: 4, up: 1.4, cone: .7, life: 1.4, grav: 3, size: .12 }), .25);
-  if (creature) scene.remove(creature.g);
+  if (creature) disposeObj(creature.g);
   const g = creatureModel(r.creature); g.position.set(0, 1.4, 0); g.scale.setScalar(.05); scene.add(g); creature = { g, kind: r.creature, t: 0 };
   if (!S.kids) { S.gap = 1.7; renderCard(false, r); setTimeout0(() => { if (S.state === 'play') newRecipe(); }, 1.7); }
   hud();
@@ -313,7 +317,7 @@ function step(dt) {
     const f = flying[i]; f.t += dt / f.dur; const k = Math.min(1, f.t);
     _v.copy(f.p0).lerp(SURF, k); _v.y += Math.sin(Math.PI * k) * (f.dur > .4 ? 1.7 : .6); f.o.position.copy(_v);
     f.o.rotation.x += f.spin.x * dt; f.o.rotation.z += f.spin.z * dt; f.o.scale.setScalar(1 - k * .35);
-    if (k >= 1) { scene.remove(f.o); flying.splice(i, 1); arrive(f.kind); }
+    if (k >= 1) { disposeObj(f.o); flying.splice(i, 1); arrive(f.kind); }
   }
   // creature
   if (creature) {
@@ -331,7 +335,7 @@ function step(dt) {
     if (tt > 2.3) { const k = Math.min(1, (tt - 2.3) / .7);
       if (c.kind === 'ghost') { g.position.y += k * 3; g.traverse(o => { if (o.material && o.material.transparent) o.material.opacity = .93 * (1 - k); }); }
       else if (c.kind !== 'bats') g.scale.setScalar(Math.max(.001, 1 - k)); }
-    if (tt > 3.1) { scene.remove(c.g); creature = null; }
+    if (tt > 3.1) { disposeObj(c.g); creature = null; }
   }
   // liquid colors, agitation, flashes
   liq.uColA.value.lerp(tgtA, 1 - Math.exp(-dt * 3)); liq.uColB.value.lerp(tgtB, 1 - Math.exp(-dt * 3));
@@ -357,7 +361,7 @@ applyQuality(S.q); applyLang(); show('menu');
 let last = performance.now();
 function loop(now) { const dt = (now - last) / 1000; last = now; if (!window.__pmManual) { step(dt); render(); fpsTick(dt); } requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
-window.__pm = { S, start, end, step: (dt, n = 1) => { for (let i = 0; i < n; i++) step(dt); render(); }, log: A.log, quality: q => q ? applyQuality(q, true) : S.q, fps: () => fps.ema,
+window.__pm = { S, audioState: () => A.audioState(), start, end, step: (dt, n = 1) => { for (let i = 0; i < n; i++) step(dt); render(); }, log: A.log, quality: q => q ? applyQuality(q, true) : S.q, fps: () => fps.ema,
   throwKind: k => throwIngredient(slots.find(s => s.kind === k)), slotScreen: k => { const s = slots.find(s => s.kind === k); const v = s.home.clone().project(camera); return { x: (v.x * .5 + .5) * VW, y: (-v.y * .5 + .5) * VH, busy: !!s.busy }; },
   ingredientInfo: () => INGREDIENTS.map(k => ({ k, glow: GLOW[k], hue: HUE[k], shape: SHAPE[k], icon: !!ICON[k], label: t(k) })), labelVisible: () => slots.every(s => s.label.visible && s.label.material.map), iscale: () => ISCALE, diff: () => S.diff, hints: () => [...hintKinds()],
   cauldronScreen: () => { const v = SURF.clone().project(camera); return { x: (v.x * .5 + .5) * VW, y: (-v.y * .5 + .5) * VH }; }, recipes: RECIPES, flying: () => flying.length, creature: () => creature && creature.kind, renderer };

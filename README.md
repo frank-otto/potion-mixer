@@ -14,7 +14,7 @@ A cinematic 3D Halloween browser game. In a candle-lit witch's vault a big cauld
 
 Difficulty: **Easy** (2-ingredient recipes, more time, hint after 1 wrong try), **Medium** (3 ingredients, hint after 3 wrong tries) and **Hard** (4 ingredients, faster, hint only after 5 wrong tries, ×1.5 points). Chosen in the menu and remembered.
 
-Extras: English by default with a **DE** toggle, a **kids mode** (no timer, throw any three ingredients and discover 8 secret potions), a shareable **highscore card** (PNG, 1080×1350; the default name is "Player"), and **quality levels** (Low / Mid / High / Ultra; it steps down automatically if the frame rate drops).
+Extras: the language follows your phone or browser (German devices get German, everything else English), with a small **DE/EN** toggle, a **kids mode** (no timer, throw any three ingredients and discover 8 secret potions), a shareable **highscore card** (PNG, 1080×1350; the default name is "Player"), and **quality levels** (Low / Mid / High / Ultra; it steps down automatically if the frame rate drops).
 
 ## Tech
 Three.js (WebGL): PBR materials, procedural stone textures with normal maps, an animated shader for the liquid surface, soft shadows, flickering candle lights, sprite steam and fog, GPU spark particles, bloom and (Ultra) depth of field. Bundled with esbuild into one classic script, so it runs straight from `file://`.
@@ -27,6 +27,7 @@ npm install && npm run build
 
 ## Tests
 `python3 test/test_game.py` (Playwright + Chrome, headless WebGL): load without console errors, tap and drag, right order → creature and score, wrong order → goo and combo reset, recipe timeout, faster recipes, end screen after 60 s, PNG card size, DE toggle, kids mode, mobile tap, all quality levels, unique shape + colour + label per ingredient, recipe icons match the 3D items, solution hints only in kids mode (or after 3 wrong tries), larger ingredients on mobile, difficulty levels (recipe length, hints, time, score bonus, remembered choice).
+`python3 test/test_mobile.py`: 8 phone configurations (iPhone 13 / 8 / SE in WebKit, Pixel 7 in Chromium, portrait and landscape). It checks that every button is tappable and at least 44 px, that nothing is cut off or scrolls, the auto language, one tap to play with sound, touch control and flat memory.
 
 ## Credits
 All sounds are recorded CC0 samples (see `LICENSES/SOUNDS.md`). Three.js (MIT). Font: Fredoka (SIL Open Font License 1.1).
